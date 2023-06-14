@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require('express');
 const morgan = require('morgan');
 
@@ -44,4 +45,3 @@ sequelize.sync().then(function () {
     console.log("== Server is running on port", port);
   });  
 })
-
