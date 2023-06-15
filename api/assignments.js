@@ -38,13 +38,13 @@ router.post('/', async function (req, res, next) {
 
         try {
 
-            // 201 if new Assignment successfully created
+            // 201 Assignment successfully created
             const assignment = await Assignment.create(req.body, AssignmentClientFields)
             res.status(201).send({ id: assignment.id})
     
         } catch (err) {
     
-            // 400 if The request body was either not present or did not contain a valid Assignment object.
+            // 400 The request body was either not present or did not contain a valid Assignment object.
             if (e instanceof ValidationError) {
 
                 res.status(400).send({ error: e.message })
@@ -56,10 +56,9 @@ router.post('/', async function (req, res, next) {
             }
     
         }
-    }
-    else {
+    } else {
         
-        // 403 if The request was not made by an authenticated User satisfying the authorization criteria described above.
+        // 403 The request was not made by an authenticated User satisfying the authorization criteria described above.
         res.status(403).send({ error: "Unauthorized access to the specified resource"})
 
     }
@@ -80,13 +79,13 @@ router.post('/:id/submissions', async function (req, res, next) {
 
     try {
 
-        // 201 if new Submission successfully created
+        // 201 Submission successfully created
         const submission = await Submission.create( req.body, SubmissionClientFields )
         res.status(201).send({ id: submission.id })
 
     } catch (err) {
 
-        // 400 if The request body was either not present or did not contain a valid Submission object.
+        // 400 The request body was either not present or did not contain a valid Submission object.
         if (e instanceof ValidationError) {
 
             res.status(400).send({ error: e.message })
@@ -120,8 +119,7 @@ router.get('/:id', async function (req, res, next) {
             // 200 Success in creating assignment
             res.status(200).send(assignment)
 
-        }
-        else {
+        } else {
 
             // 404 Id not found
             next()
@@ -143,6 +141,8 @@ Assignment's courseId can fetch the Submissions for an Assignment.
 
 */
 router.get('/:id/submissions', async function (req, res, next) {
+    
+    // Store assignment id
     const id = req.params.id
 
     // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
@@ -165,14 +165,14 @@ router.get('/:id/submissions', async function (req, res, next) {
             links.nextPage = `/${id}/submissions?page=${page + 1}`
             links.lastPage = `/${id}/submissions?page=${lastPage}`
 
-        }
-        else {
+        } else {
 
             links.prevPage = `/${id}/submissions?page=${page - 1}`
             links.firstPage = `/${id}/submissions?page=1`   
 
         }
 
+        // 200 Success in getting list of submissions
         res.status(200).json({
             submissions: result.rows,
             pageNumber: page,
@@ -196,18 +196,75 @@ Only an authenticated User with 'admin' role or an authenticated 'instructor' Us
 of the Course corresponding to the Assignment's courseId can update an Assignment.
 
 */
-/*
-router.patch('/:id')
 
-*/
+router.patch('/:id', async function (req, res, next) {
+
+    // Store assignment id
+    const id = req.params.id
+
+    // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
+
+    try {
+
+        const result = await Assignment.update(req.body, { 
+            where: { id: id },
+            fields: AssignmentClientFields
+        })
+        
+        if (result[0] > 0) {
+
+            // 200 Success in patching assignment
+            res.status(200).send()
+
+        } else {
+
+            next()
+
+        }
+
+    } catch (err) {
+
+        next(err)
+
+    }
+})
+
+
 /*
 
 Completely removes the data for the specified Assignment, including all submissions. Only an authenticated User with 'admin' 
 role or an authenticated 'instructor' User whose ID matches the instructorId of the Course corresponding to the Assignment's courseId can delete an Assignment.
 
 */
-/*
-router.delete('/:id')
-*/
+
+router.delete('/:id', async function (req, res, next) {
+    
+    // Store assignment id
+    const id = req.params.id
+
+    // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
+
+    try {
+
+        const result = await Assignment.destroy({ where: { id: id }})
+
+        if (result > 0) {
+
+            // 204 Success in deleting assignment
+            res.status(204).send()
+
+        } else {
+
+            next()
+
+        }
+
+    } catch (err) {
+
+        next(err)
+
+    }
+})
+
 
 module.exports = router
