@@ -9,10 +9,13 @@ const User = sequelize.define('user', {
     password: { type: DataTypes.STRING, allowNull: false, set(value) {
         this.setDataValue('password', bcrypt.hashSync(value, 8));
     } },
-    role: { type: DataTypes.ENUM('admin', 'instructor', 'student'), allowNull: false }
+    role: { type: DataTypes.ENUM,
+        values: ['admin', 'instructor', 'student'], 
+        defaultValue: 'student', allowNull: false }
 })
 
 exports.User = User
+
 
 exports.UserClientFields = [
     'name',

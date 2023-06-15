@@ -1,3 +1,5 @@
+require('dotenv').config()
+
 const express = require('express');
 const morgan = require('morgan');
 
@@ -13,7 +15,7 @@ const port = process.env.PORT || 8000;
 app.use(morgan('dev'));
 
 app.use(express.json());
-app.use(express.static('public'));
+//app.use(express.static('public'));
 
 /*
  * All routes for the API are written in modules in the api/ directory.  The
