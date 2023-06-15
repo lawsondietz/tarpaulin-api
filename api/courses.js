@@ -1,7 +1,8 @@
 const { Router } = require('express')
 const { ValidationError } = require('sequelize')
 
-const { Course, CourseClientFields } = require('../models/course')
+const { UserClientFields, User} = require('../models/user')
+const { Course, CourseStudents, CourseClientFields } = require('../models/course')
 const { requireAuthentication, getUserTokenInfo } = require('../lib/auth')
 
 const router = Router()
@@ -10,7 +11,7 @@ const router = Router()
 router.get('/', async function (req, res, next) {
 
     let page = parseInt(req.query.page) || 1
-    page = pate < 1 ? 1 : page
+    page = page < 1 ? 1 : page
     const numPerPage = 10
     const offset = (page - 1) * numPerPage
 
@@ -101,19 +102,17 @@ router.patch('/:courseId', requireAuthentication, async function (req, res, next
                     next()
                 }
             } else {
-                if (!course) {
-                    res.status(404).send({
-                        error: "Course does not exist"
-                    })
-                } else {
-                    res.status(403).send({
-                        error: "Unauthorized to access the specified resource"
-                    })
-                }
+                 res.status(404).send({
+                    error: "Course does not exist"
+                })
             }
         } catch (e) {
             next(e)
         }
+    } else {
+        res.status(403).send({
+            error: "Unauthorized to access the specified resource"
+        })
     }
 })
 
@@ -134,12 +133,16 @@ router.delete('/:courseId', requireAuthentication, async function (req, res, nex
                 }
             } else {
                 res.status(404).send({
-                        error: "Course does not exist"
+                    error: "Course does not exist"
                 })
             }
         } catch (e) {
             next(e)
         }
+    } else {
+        res.status(403).send({
+            error: "Unauthorized to access the specified resource"
+        })
     }
 })
 
@@ -150,7 +153,21 @@ router.get('/:courseId/students', requireAuthentication, async function (req, re
     const courseId = req.params.courseId
     if ((req.user.role == 'admin') || 
     (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
-
+        try {
+            const course = await Course.findByPk(courseId)
+            const students = await course.getUsers()
+            if (students) {
+                res.status(200).send(students)
+            } else {
+                next()
+            }
+        } catch (e) {
+            next(e)
+        }
+    } else {
+        res.status(403).send({
+            error: "Unauthorized to access the specified resource"
+        })
     }
 })
 
@@ -161,7 +178,29 @@ router.post('/:courseId/students', requireAuthentication, async function (req, r
     const courseId = req.params.courseId
     if ((req.user.role == 'admin') || 
     (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
-
+        console.log("req.body.add:", req.body.add)
+        if (req.body.add != null || req.body.remove != null) {
+            try {
+                const course = await Course.findByPk(courseId)
+                if (req.body.add.length > 0) {
+                    for(const a of req.body.add) {
+                        await course.addUser(parseInt(a))
+                    }
+                }
+                if (req.body.remove.length > 0) {
+                    for(const r of req.body.remove) {
+                        await course.removeUser(parseInt(r))
+                    }
+                }
+                res.status(200).send()
+            } catch (e) {
+                next(e)
+            }
+        }
+    } else {
+        res.status(403).send({
+            error: "Unauthorized to access the specified resource"
+        })
     }
 })
 
