@@ -200,22 +200,23 @@ router.post('/:courseId/students', requireAuthentication, async function (req, r
         if (req.body.add != null || req.body.remove != null) {
             try {
                 const course = await Course.findByPk(courseId)
-                if (!course) {
+                if (course) {
+                    if (req.body.add.length > 0) {
+                        for(const a of req.body.add) {
+                            await course.addUser(parseInt(a))
+                        }
+                    }
+                    if (req.body.remove.length > 0) {
+                        for(const r of req.body.remove) {
+                            await course.removeUser(parseInt(r))
+                        }
+                    }
+                    res.status(200).send()
+                } else {
                     res.status(404).send({
                         error: "Specified course does not exist"
                     })
                 }
-                if (req.body.add.length > 0) {
-                    for(const a of req.body.add) {
-                        await course.addUser(parseInt(a))
-                    }
-                }
-                if (req.body.remove.length > 0) {
-                    for(const r of req.body.remove) {
-                        await course.removeUser(parseInt(r))
-                    }
-                }
-                res.status(200).send()
             } catch (e) {
                 console.log("Test")
                 next(e)
