@@ -24,7 +24,7 @@ the instructorId of the Course corresponding to the Assignment's courseId can cr
 
 */
 router.post('/', async function (req, res, next) {
-    console.log("", req.user.userId)
+    //console.log("", req.user.userId)
     test = 1
 
     if (test) {

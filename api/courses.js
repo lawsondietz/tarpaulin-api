@@ -4,6 +4,7 @@ const { ValidationError } = require('sequelize')
 const { UserClientFields, User} = require('../models/user')
 const { Course, CourseStudents, CourseClientFields } = require('../models/course')
 const { requireAuthentication, getUserTokenInfo } = require('../lib/auth')
+const { Assignment } = require('../models/assignment')
 
 const router = Router()
 
@@ -17,6 +18,7 @@ router.get('/', async function (req, res, next) {
 
     try {
         const result = await Course.findAndCountAll({
+            attributes: {exclude: ['createdAt', 'updatedAt']},
             limit: numPerPage,
             offset: offset
         })
@@ -73,7 +75,13 @@ router.get('/:courseId', async function (req, res, next) {
     try {
         const course = await Course.findByPk(courseId)
         if (course) {
-            res.status(200).send(course)
+            res.status(200).send({
+                subject: course.subject,
+                number: course.number,
+                title: course.title,
+                term: course.term,
+                instructorId: course.instructorId
+            })
         } else {
             next()
         }
@@ -154,8 +162,18 @@ router.get('/:courseId/students', requireAuthentication, async function (req, re
     if ((req.user.role == 'admin') || 
     (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
         try {
-            const course = await Course.findByPk(courseId)
-            const students = await course.getUsers()
+
+            const coursestudents = await CourseStudents.findAll({
+                where: { courseId: courseId }
+            })
+            var studentsFind = []
+            for (let i = 0; i < coursestudents.length; i++) {
+                studentsFind[i] = coursestudents[i].userId
+            }
+            const students = await User.findAll({
+                where: { id: studentsFind },
+                attributes: {exclude: ['password', 'createdAt', 'updatedAt']}
+            }) 
             if (students) {
                 res.status(200).send(students)
             } else {
@@ -216,7 +234,15 @@ router.get('/:courseId/roster', requireAuthentication, async function (req, res,
 
 //Returns a list of assignments in course
 router.get('/:courseId/assignments', async function (req, res, next) {
-
+    try{
+        const assignments = await Assignment.findAll({
+            where: {courseId: req.params.courseId},
+            attributes: { exclude: ['createdAt', 'updatedAt']}
+        })
+        res.status(200).send(assignments)
+    } catch (e) {
+        next(e)
+    }
 })
 
 

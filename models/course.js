@@ -43,6 +43,7 @@ const CourseStudents = sequelize.define('coursestudents', {
 Course.belongsToMany(User, { through: CourseStudents })
 User.belongsToMany(Course, { through: CourseStudents })
 
+exports.CourseStudents = CourseStudents
 
 exports.CourseClientFields = [
     'subject',

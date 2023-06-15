@@ -7,7 +7,7 @@ const api = require('./api');
 const sequelize = require('./lib/sequelize');
 
 const app = express();
-const port = process.env.PORT || 8000;
+const port = process.env.PORT || 8080;
 
 /*
  * Morgan is a popular request logger.
@@ -15,7 +15,7 @@ const port = process.env.PORT || 8000;
 app.use(morgan('dev'));
 
 app.use(express.json());
-//app.use(express.static('public'));
+app.use(express.static('public'));
 
 /*
  * All routes for the API are written in modules in the api/ directory.  The
