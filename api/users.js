@@ -69,6 +69,14 @@ router.get('/:userId', requireAuthentication, async function (req, res, next) {
                 }
             })
             if (user.role == 'student') {
+                /*var tempCourses = await user.getCourses({attributes: ['id']})
+                var temp = {
+                    courses: []
+                }
+                var count = 0
+                for (const course of tempCourses) {
+                    courses[count] = course.id
+                }*/
                 res.status(200).json({
                     id: user.id,
                     name: user.name,
