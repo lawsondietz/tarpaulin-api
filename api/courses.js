@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const { ValidationError } = require('sequelize')
+const { Parser } = require('json2csv')
 
 const { UserClientFields, User} = require('../models/user')
 const { Course, CourseStudents, CourseClientFields } = require('../models/course')
@@ -235,7 +236,43 @@ router.get('/:courseId/roster', requireAuthentication, async function (req, res,
     const courseId = req.params.courseId
     if ((req.user.role == 'admin') || 
     (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
-
+        try {
+            const coursestudents = await CourseStudents.findAll({
+                where: { courseId: courseId }
+            })
+            var studentsFind = []
+            for (let i = 0; i < coursestudents.length; i++) {
+                studentsFind[i] = coursestudents[i].userId
+            }
+            const students = await User.findAll({
+                where: { id: studentsFind },
+                attributes: {exclude: ['password', 'createdAt', 'updatedAt']}
+            })
+            if (students) {
+                const fields = [{
+                    label: 'ID',
+                    value: 'id'
+                }, {
+                    label: 'Name',
+                    value: 'name'
+                }, {
+                    label: 'Email',
+                    value: 'email'
+                }] 
+                const json2csv = new Parser({ fields: fields })
+                const csv = json2csv.parse(students)
+                res.attachment('students.csv')
+                res.status(200).send(csv)
+            } else {
+                next()
+            }
+        } catch (e) {
+            next(e)
+        }
+    } else {
+        res.status(403).send({
+            error: "Unauthorized to access the specified resource"
+        })
     }
 })
 
