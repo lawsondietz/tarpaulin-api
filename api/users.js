@@ -3,6 +3,8 @@ const { Router } = require('express')
 const { UserClientFields, User} = require('../models/user')
 const { ValidationError } = require('sequelize')
 const { generateAuthToken, requireAuthentication, roleAuthentication } = require('../lib/auth')
+const { Course, CourseStudents, CourseClientFields } = require('../models/course')
+
 
 const router = Router()
 const bcrypt = require('bcrypt')
@@ -56,23 +58,43 @@ router.post('/login', async function (req, res, next) {
 })
 
 router.get('/:userId', requireAuthentication, async function (req, res, next) {
-    if (req.userId == req.params.userId) {
+    if (req.user.id == req.params.userId) {
         try{
-            const user = await User.findByPk(req.params.userId)
+            const user = await User.findByPk(req.params.userId, {
+                include: {
+                    model: Course,
+                    as: "courses",
+                    through: { attributes: [] },
+                    attributes: ['id']
+                }
+            })
             if (user.role == 'student') {
+                /*var tempCourses = await user.getCourses({attributes: ['id']})
+                var temp = {
+                    courses: []
+                }
+                var count = 0
+                for (const course of tempCourses) {
+                    courses[count] = course.id
+                }*/
                 res.status(200).json({
                     id: user.id,
                     name: user.name,
                     email: user.email,
-                    role: user.role
+                    role: user.role,
+                    courses: user.courses
                     //implement many to many to display courses they are in
                 })
             } else if (user.role == 'instructor') {
+                const courses = await Course.findAll( 
+                    { where: {instructorId: user.id},
+                    attributes: ['id']})
                 res.status(200).json({
                     id: user.id,
                     name: user.name,
                     email: user.email,
-                    role: user.role
+                    role: user.role,
+                    courses: courses
                     //implement many to many to display courses taught
                 })
             } else {

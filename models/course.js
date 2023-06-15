@@ -23,10 +23,25 @@ Course.hasMany(Assignment, {
 })
 Assignment.belongsTo(Course)
 
-Course.hasMany(User, {
-    foreignKey: { allowNull: false }
+
+const CourseStudents = sequelize.define('coursestudents', {
+    courseId: {
+        type: DataTypes.INTEGER,
+        references: {
+            model: Course,
+            key: 'id'
+        }
+    },
+    userId: {
+        type: DataTypes.INTEGER,
+        references: {
+            model: User,
+            key: 'id'
+        }
+    }
 })
-User.belongsToMany(Course)
+Course.belongsToMany(User, { through: CourseStudents })
+User.belongsToMany(Course, { through: CourseStudents })
 
 
 exports.CourseClientFields = [
