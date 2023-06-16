@@ -1,20 +1,49 @@
 
 const { Router } = require('express')
 const fs = require('node:fs')
+const crypto = require("node:crypto")
 const multer = require('multer')
+const express = require('express')
 
 const { User } = require('../models/user')
-const { Course } = require('../models/course')
+const { Course, CourseStudents } = require('../models/course')
 const { Assignment, AssignmentClientFields } = require('../models/assignment')
 const { Submission, SubmissionClientFields } = require('../models/submission')
 
-const { validateAgainstSchema } = require('../lib/validation')
+const { validateAgainstSchema, extractValidFields } = require('../lib/validation')
 const { generateAuthToken, requireAuthentication } = require('../lib/auth')
 const { ValidationError } = require('sequelize')
-const e = require('express')
-const { resourceLimits } = require('node:worker_threads')
 
 const router = Router()
+
+
+const fileTypes = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/pdf": "pdf",
+    "application/json": "json",
+    "text/markdown": "md",
+    "application/zip": "zip",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":"docx",
+    "text/plain":"txt",
+    "text/html":"html"
+}
+
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: `uploads`,
+        filename: (req, file, callback) => {
+            const filename = crypto.pseudoRandomBytes(16).toString("hex")
+            const extension = fileTypes[file.mimetype]
+            callback(null, `${filename}.${extension}`)
+        }
+    }),
+    fileFilter: (req, file, callback) => {
+        callback(null, !!fileTypes[file.mimetype])
+    }
+})
+
+router.use("/uploads", express.static("uploads/"))
 
 /*
 
@@ -23,19 +52,28 @@ Only an authenticated User with 'admin' role or an authenticated 'instructor' Us
 the instructorId of the Course corresponding to the Assignment's courseId can create an Assignment.
 
 */
-router.post('/', async function (req, res, next) {
-    //console.log("", req.user.userId)
-    test = 1
+router.post('/', requireAuthentication, async function (req, res, next) {
 
-    if (test) {
-        // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
-        /*
-        var course = await Course.findByPK(req.body.courseId) || -1
+    try {
 
-        if (course == -1) {
-         res.status()
-        }
-        */
+        var course = await Course.findByPk(req.body.courseId)
+
+        if (!course) {
+
+            // 400 Course not found
+            res.status(400).send({ error: `No course with id ${req.body.courseId} exists`})
+            return
+    
+        }    
+
+    } catch (err) {
+
+        next(err)
+
+    }
+
+    // Authenticate by admin and instructor with matching instructor id 
+    if (req.user.role == 'admin' || (req.user.role == "instructor" && req.user.id == course.instructorId)) {
 
         try {
 
@@ -46,9 +84,9 @@ router.post('/', async function (req, res, next) {
         } catch (err) {
     
             // 400 The request body was either not present or did not contain a valid Assignment object.
-            if (e instanceof ValidationError) {
+            if (err instanceof ValidationError) {
 
-                res.status(400).send({ error: e.message })
+                res.status(400).send({ error: err.message })
 
             } else {
 
@@ -67,39 +105,84 @@ router.post('/', async function (req, res, next) {
 
 /*
 
-Create and store a new Assignment with specified data and adds it to the application's database. 
+Create and store a new Submission for an Assignment with specified data and adds it to the application's database. 
 Only an authenticated User with 'student' role who is enrolled in the Course corresponding to the Assignment's courseId can create a Submission.
 
 */
-router.post('/:id/submissions', async function (req, res, next) {
+router.post('/:id/submissions', upload.single("file"), requireAuthentication, async function (req, res, next) {
 
     // Store assignment id
     const id = req.params.id
 
-    //TODO authenticate student enrolled in course
-
     try {
 
-        // 201 Submission successfully created
-        const submission = await Submission.create( req.body, SubmissionClientFields )
-        res.status(201).send({ id: submission.id })
+        var assignment = await Assignment.findByPk(req.body.assignmentId)
+
+        if (!assignment) {
+    
+            // 400 Assignment does not exist
+            res.status(400).send({ error: `No assignment with id ${req.body.assignmentId} exists`})
+            return
+    
+        }
+    
+        var studentList = await CourseStudents.findAll({
+    
+            where: { courseId: assignment.courseId, userId: req.user.id }
+    
+        })
+    
+        if (!studentList) {
+    
+            // 400 Assignment does not exist
+            res.status(400).send({ error: `No student with id ${req.body.assignmentId} exists in course ${assignment.courseId}`})
+            return
+    
+        }
 
     } catch (err) {
 
-        // 400 The request body was either not present or did not contain a valid Submission object.
-        if (e instanceof ValidationError) {
-
-            res.status(400).send({ error: e.message })
-        
-        } else {
-        
-            next(err)
-        
-        }
+        next(err)
 
     }
 
+    if (req.user.role == 'student') {
+
+        try {
+
+            // 201 Submission successfully created
+            const submissionBody  = { assignmentId: req.body.assignmentId, studentId: req.body.studentId, file: req.file.path}
+            const submission = await Submission.create( submissionBody, SubmissionClientFields )
+            console.log("", req.body)
+            res.status(201).send({ id: submission.id })
+    
+        } catch (err) {
+            console.log("", req.body)
+
+            // 400 The request body was either not present or did not contain a valid Submission object.
+            if (err instanceof ValidationError) {
+    
+                res.status(400).send({ error: err.message })
+            
+            } else {
+            
+                next(err)
+            
+            }
+    
+        }
+
+    } else {
+        
+        // 403 The request was not made by an authenticated User satisfying the authorization criteria described above.
+        res.status(403).send({ error: "Unauthorized access to the specified resource"})
+
+    }
+    
+
+
 })
+
 
 /*
 
@@ -113,7 +196,11 @@ router.get('/:id', async function (req, res, next) {
 
     try {
 
-        const assignment = await Assignment.findByPk(id)
+        const assignment = await Assignment.findByPk(id, {
+            attributes: {
+                exclude: ['createdAt', 'updatedAt']
+            }
+        })
 
         if (assignment) {
 
@@ -141,51 +228,83 @@ Returns the list of all Submissions for an Assignment. This list should be pagin
 Assignment's courseId can fetch the Submissions for an Assignment.
 
 */
-router.get('/:id/submissions', async function (req, res, next) {
+router.get('/:id/submissions', requireAuthentication, async function (req, res, next) {
     
     // Store assignment id
     const id = req.params.id
-
-    // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
-
-    let page = parseInt(req.query.page) || 1
-    page = page < 1 ? 1 : page
-    const numPerPage = 10
-    const offset = (page - 1) * numPerPage
-
+    
     try {
 
-        // Number of submissions for pagination
-        const result = await Submission.findAndCountAll({ limit: numPerPage, offset: offset })
+        var assignment = await Assignment.findByPk(id)
 
-        // Pagination link creation
-        const lastPage = Math.ceil(result.count / numPerPage)
-        const links = {}
-        if (page < lastPage ) {
-
-            links.nextPage = `/${id}/submissions?page=${page + 1}`
-            links.lastPage = `/${id}/submissions?page=${lastPage}`
-
-        } else {
-
-            links.prevPage = `/${id}/submissions?page=${page - 1}`
-            links.firstPage = `/${id}/submissions?page=1`   
-
+        if (!assignment) {
+    
+            // 400 Assignment does not exist
+            res.status(400).send({ error: `No assignment with id ${req.body.assignmentId} exists`})
+            return
+    
         }
 
-        // 200 Success in getting list of submissions
-        res.status(200).json({
-            submissions: result.rows,
-            pageNumber: page,
-            totalPages: lastPage,
-            pageSize: numPerPage,
-            totalCount: result.count,
-            links: links
-        })
+        var course = await Course.findByPk(assignment.courseId)
 
     } catch (err) {
 
         next(err)
+        return
+
+    }
+
+    if (req.user.role == 'admin' || (req.user.role == "instructor" && req.user.id == course.instructorId)) {
+
+        // Pagination variables
+        let page = parseInt(req.query.page) || 1
+        page = page < 1 ? 1 : page
+        const numPerPage = 10
+        const offset = (page - 1) * numPerPage
+    
+        try {
+    
+            // Number of submissions for pagination
+            const result = await Submission.findAndCountAll({ limit: numPerPage, offset: offset,
+                attributes: {
+                    exclude: ['createdAt', 'updatedAt']
+                }})
+    
+            // Pagination link creation
+            const lastPage = Math.ceil(result.count / numPerPage)
+            const links = {}
+            if (page < lastPage ) {
+    
+                links.nextPage = `/${id}/submissions?page=${page + 1}`
+                links.lastPage = `/${id}/submissions?page=${lastPage}`
+    
+            } else {
+    
+                links.prevPage = `/${id}/submissions?page=${page - 1}`
+                links.firstPage = `/${id}/submissions?page=1`   
+    
+            }
+    
+            // 200 Success in getting list of submissions
+            res.status(200).json({
+                submissions: result.rows,
+                pageNumber: page,
+                totalPages: lastPage,
+                pageSize: numPerPage,
+                totalCount: result.count,
+                links: links
+            })
+    
+        } catch (err) {
+    
+            next(err)
+    
+        }
+
+    } else {
+        
+        // 403 The request was not made by an authenticated User satisfying the authorization criteria described above.
+        res.status(403).send({ error: "Unauthorized access to the specified resource"})
 
     }
 })
@@ -198,36 +317,77 @@ of the Course corresponding to the Assignment's courseId can update an Assignmen
 
 */
 
-router.patch('/:id', async function (req, res, next) {
+router.patch('/:id', requireAuthentication, async function (req, res, next) {
 
     // Store assignment id
     const id = req.params.id
 
-    // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
+    if (Object.keys(req.body).length === 0) {
+        res.status(400).send({ error: "The request body is empty"})
+        next()
+    }
+
+    const valid = extractValidFields(req.body, AssignmentClientFields)
+
+    if (!valid) {
+        console.log("test")
+        next()
+        return
+
+    }
 
     try {
 
-        const result = await Assignment.update(req.body, { 
-            where: { id: id },
-            fields: AssignmentClientFields
-        })
-        
-        if (result[0] > 0) {
+        var assignment = await Assignment.findByPk(id)
 
-            // 200 Success in patching assignment
-            res.status(200).send()
-
-        } else {
-
-            next()
-
+        if (!assignment) {
+            console.log("test")
+            // 404 Assignment does not exist   
+            res.status(404).send({ error: `No assignment with id ${id} exists`})
+    
         }
+
+        var course = await Course.findByPk(assignment.courseId) 
 
     } catch (err) {
 
         next(err)
 
     }
+
+    if (req.user.role == 'admin' || (req.user.role == "instructor" && req.user.id == course.instructorId)) {
+        
+        try {
+
+            const result = await Assignment.update(req.body, { 
+                where: { id: id },
+                fields: AssignmentClientFields
+            })
+            
+            if (result[0] > 0) {
+    
+                // 200 Success in patching assignment
+                res.status(200).send()
+    
+            } else {
+                next()
+    
+            }
+    
+        } catch (err) {
+    
+            next(err)
+    
+        }
+
+    } else {
+        
+        // 403 The request was not made by an authenticated User satisfying the authorization criteria described above.
+        res.status(403).send({ error: "Unauthorized access to the specified resource"})
+
+    }
+
+
 })
 
 
@@ -238,31 +398,58 @@ role or an authenticated 'instructor' User whose ID matches the instructorId of 
 
 */
 
-router.delete('/:id', async function (req, res, next) {
+router.delete('/:id', requireAuthentication, async function (req, res, next) {
     
     // Store assignment id
     const id = req.params.id
 
-    // TODO authenticate user with admin role or instructor id that matches instructor id of corresponding course
-
     try {
 
-        const result = await Assignment.destroy({ where: { id: id }})
+        var assignment = await Assignment.findByPk(id)
 
-        if (result > 0) {
+        if (!assignment) {
 
-            // 204 Success in deleting assignment
-            res.status(204).send()
+            // 404 Assignment not found
+            res.status(404).send({ error: `No assignment with id ${id} exists`})
+            return
+    
+        } 
 
-        } else {
-
-            next()
-
-        }
+        var course = await Course.findByPk(assignment.courseId)   
 
     } catch (err) {
 
         next(err)
+
+    }
+
+    if (req.user.role == 'admin' || (req.user.role == "instructor" && req.user.id == course.instructorId)) {
+
+        try {
+
+            const result = await Assignment.destroy({ where: { id: id }})
+    
+            if (result > 0) {
+    
+                // 204 Success in deleting assignment
+                res.status(204).send()
+    
+            } else {
+    
+                next()
+    
+            }
+    
+        } catch (err) {
+    
+            next(err)
+    
+        }
+
+    } else {
+        
+        // 403 The request was not made by an authenticated User satisfying the authorization criteria described above.
+        res.status(403).send({ error: "Unauthorized access to the specified resource"})
 
     }
 })
