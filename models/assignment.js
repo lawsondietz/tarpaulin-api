@@ -23,10 +23,10 @@ const Assignment = sequelize.define('assignment', {
     }
 })
 
+exports.Assignment = Assignment
 
 // Create submission relationship and handle delete and patch requests
 Assignment.hasMany(Submission, { 
-
     onDelete: "CASCASE",
     onPatch: "CASCADE",
     foreignKey: { allowNull: false }
@@ -34,7 +34,8 @@ Assignment.hasMany(Submission, {
 Submission.belongsTo(Assignment)
 
 
-exports.Assignment = Assignment
+
+
 
 
 exports.AssignmentClientFields = [

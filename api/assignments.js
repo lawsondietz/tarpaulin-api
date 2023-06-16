@@ -54,14 +54,16 @@ the instructorId of the Course corresponding to the Assignment's courseId can cr
 */
 router.post('/', requireAuthentication, async function (req, res, next) {
 
+    
+
     try {
 
         var course = await Course.findByPk(req.body.courseId)
 
         if (!course) {
 
-            // 400 Course not found
-            res.status(400).send({ error: `No course with id ${req.body.courseId} exists`})
+            // 404 Course not found
+            res.status(404).send({ error: `No course with id ${req.body.courseId} exists`})
             return
     
         }    
@@ -114,28 +116,70 @@ router.post('/:id/submissions', upload.single("file"), requireAuthentication, as
     // Store assignment id
     const id = req.params.id
 
+    if (Object.keys(req.body).length === 0) {
+        res.status(400).send({ error: "The request body is empty"})
+        return
+    }
+
+    var checkAssignmentId = false
+    var checkStudentId = false
+    for (key in req.body) {
+        if(key == 'assignmentId'){
+            checkAssignmentId = true
+        }
+        if(key == 'studentId'){
+            checkStudentId = true
+        }
+    }
+    
+    if(!checkAssignmentId || !checkStudentId) {
+        res.status(400).send({ error: "The request contains invalid information" })
+        return
+    }
+
+
+    if (!req.file) {
+        res.status(400).send({ error: "The request body is missing a file" })
+        return
+    }
+
+    if (req.body.studentId != req.user.id) {
+        res.status(403).send({ error: "The user token does not match the user in the request"})
+        return
+    }
+
+    if (req.body.assignmentId != id) {
+        res.status(400).send({ error: "The url id does not match the form id"})
+        return
+    }
+
     try {
 
-        var assignment = await Assignment.findByPk(req.body.assignmentId)
+        var assignment = await Assignment.findByPk(id)
 
         if (!assignment) {
     
             // 400 Assignment does not exist
-            res.status(400).send({ error: `No assignment with id ${req.body.assignmentId} exists`})
+            res.status(404).send({ error: `No assignment with id ${id} exists`})
             return
     
         }
     
+
         var studentList = await CourseStudents.findAll({
-    
-            where: { courseId: assignment.courseId, userId: req.user.id }
+
+            where: { 
+                courseId: assignment.courseId, 
+                userId: req.user.id 
+            }
     
         })
     
+
         if (!studentList) {
     
             // 400 Assignment does not exist
-            res.status(400).send({ error: `No student with id ${req.body.assignmentId} exists in course ${assignment.courseId}`})
+            res.status(404).send({ error: `No student with id ${req.body.studentId} exists in course ${assignment.courseId}`})
             return
     
         }
@@ -240,7 +284,7 @@ router.get('/:id/submissions', requireAuthentication, async function (req, res, 
         if (!assignment) {
     
             // 400 Assignment does not exist
-            res.status(400).send({ error: `No assignment with id ${req.body.assignmentId} exists`})
+            res.status(404).send({ error: `No assignment with id ${id} exists`})
             return
     
         }
@@ -266,6 +310,7 @@ router.get('/:id/submissions', requireAuthentication, async function (req, res, 
     
             // Number of submissions for pagination
             const result = await Submission.findAndCountAll({ limit: numPerPage, offset: offset,
+                where: { assignmentId: id},
                 attributes: {
                     exclude: ['createdAt', 'updatedAt']
                 }})
@@ -322,6 +367,23 @@ router.patch('/:id', requireAuthentication, async function (req, res, next) {
     // Store assignment id
     const id = req.params.id
 
+    try {
+
+        var assignment = await Assignment.findByPk(id)
+
+        if (!assignment) {
+            // 404 Assignment does not exist   
+            res.status(404).send({ error: `No assignment with id ${id} exists`})
+            return
+    
+        }
+
+    } catch (err) {
+
+        next(err)
+
+    }
+
     if (Object.keys(req.body).length === 0) {
         res.status(400).send({ error: "The request body is empty"})
         return
@@ -339,17 +401,7 @@ router.patch('/:id', requireAuthentication, async function (req, res, next) {
         return
     }
 
-
     try {
-
-        var assignment = await Assignment.findByPk(id)
-
-        if (!assignment) {
-            console.log("test")
-            // 404 Assignment does not exist   
-            res.status(404).send({ error: `No assignment with id ${id} exists`})
-    
-        }
 
         var course = await Course.findByPk(assignment.courseId) 
 
