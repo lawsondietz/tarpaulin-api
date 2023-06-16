@@ -1,7 +1,6 @@
 const { DataTypes } = require('sequelize')
 const sequelize = require("../lib/sequelize.js")
 
-
 const Submission = sequelize.define('submission', {
     assignmentId: {
         type: DataTypes.INTEGER,
