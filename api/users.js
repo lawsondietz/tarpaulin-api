@@ -10,6 +10,14 @@ const router = Router()
 const bcrypt = require('bcrypt')
 
 router.post('/', roleAuthentication, async function (req, res, next){
+
+    for (field in UserClientFields) {
+        if(!req.body.hasOwnProperty(UserClientFields[field])){
+            res.status(400).send({ error: "The request body contains an valid field" })
+            return
+        }
+    }
+
     try {
         if (((req.body.role == 'admin' || 'instructor') && req.user.role == 'admin') ||
         req.body.role == 'student' ) {
@@ -18,7 +26,7 @@ router.post('/', roleAuthentication, async function (req, res, next){
             res.status(201).send({ id: user.id })
         } else {
             res.status(403).send({
-                    error: "Invalid authentication permissions"
+                error: "Invalid authentication permissions for request"
             })
         }
     } catch (e) {
@@ -48,12 +56,16 @@ router.post('/login', async function (req, res, next) {
                 }
             } else {
                 res.status(401).send({
-                    error: "Invalid authentication credentials"
+                    error: "User does not exist"
                 })
             }
         } catch (e) {
             next(e)
         }
+    } else {
+        res.status(400).send({
+            error: "Request body missing required fields"
+        })
     }
 })
 
