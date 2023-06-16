@@ -188,8 +188,19 @@ router.delete('/:courseId', requireAuthentication, async function (req, res, nex
 // matches the one for the course
 router.get('/:courseId/students', requireAuthentication, async function (req, res, next) {
     const courseId = req.params.courseId
+    try {
+        var course = await Course.findByPk(courseId)
+        if (!course) {
+            // 404 Course not found
+            res.status(404).send({ error: `No course with id ${courseId} exists`})
+            return
+        }    
+    } catch (err) {
+        next(err)
+    }
+
     if ((req.user.role == 'admin') || 
-    (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
+    (req.user.role == 'instructor' && req.user.id == course.instructorId)) {
         try {
 
             const coursestudents = await CourseStudents.findAll({
@@ -223,8 +234,20 @@ router.get('/:courseId/students', requireAuthentication, async function (req, re
 // matches the one for the course
 router.post('/:courseId/students', requireAuthentication, async function (req, res, next) {
     const courseId = req.params.courseId
+
+    try {
+        var course = await Course.findByPk(courseId)
+        if (!course) {
+            // 404 Course not found
+            res.status(404).send({ error: `No course with id ${courseId} exists`})
+            return
+        }    
+    } catch (err) {
+        next(err)
+    }
+    
     if ((req.user.role == 'admin') || 
-    (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
+    (req.user.role == 'instructor' && req.user.id == course.instructorId)) {
         console.log("req.body.add:", req.body.add)
         if (req.body.add != null || req.body.remove != null) {
             try {
@@ -232,12 +255,18 @@ router.post('/:courseId/students', requireAuthentication, async function (req, r
                 if (course) {
                     if (req.body.add.length > 0) {
                         for(const a of req.body.add) {
-                            await course.addUser(parseInt(a))
+                            const student = await User.findByPk(a)
+                            if (student.role == 'student'){
+                                await course.addUser(parseInt(a))
+                            }
                         }
                     }
                     if (req.body.remove.length > 0) {
                         for(const r of req.body.remove) {
-                            await course.removeUser(parseInt(r))
+                            const student = await User.findByPk(r)
+                            if (student.role == 'student'){
+                                await course.removeUser(parseInt(r))
+                            }
                         }
                     }
                     res.status(200).send()
@@ -261,8 +290,20 @@ router.post('/:courseId/students', requireAuthentication, async function (req, r
 //Access restricted to users with role 'admin' or 'instructor'
 router.get('/:courseId/roster', requireAuthentication, async function (req, res, next) {
     const courseId = req.params.courseId
+
+    try {
+        var course = await Course.findByPk(courseId)
+        if (!course) {
+            // 404 Course not found
+            res.status(404).send({ error: `No course with id ${courseId} exists`})
+            return
+        }    
+    } catch (err) {
+        next(err)
+    }
+
     if ((req.user.role == 'admin') || 
-    (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
+    (req.user.role == 'instructor' && req.user.id == course.instructorId)) {
         try {
             const coursestudents = await CourseStudents.findAll({
                 where: { courseId: courseId }
@@ -305,9 +346,22 @@ router.get('/:courseId/roster', requireAuthentication, async function (req, res,
 
 //Returns a list of assignments in course
 router.get('/:courseId/assignments', async function (req, res, next) {
+    const courseId = req.params.courseId
+
+    try {
+        var course = await Course.findByPk(courseId)
+        if (!course) {
+            // 404 Course not found
+            res.status(404).send({ error: `No course with id ${courseId} exists`})
+            return
+        }    
+    } catch (err) {
+        next(err)
+    }
+
     try{
         const assignments = await Assignment.findAll({
-            where: {courseId: req.params.courseId},
+            where: {courseId: courseId},
             attributes: { exclude: ['createdAt', 'updatedAt']}
         })
         res.status(200).send(assignments)
