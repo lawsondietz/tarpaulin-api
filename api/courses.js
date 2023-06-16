@@ -53,6 +53,14 @@ router.get('/', async function (req, res, next) {
 //Creates a new course
 //Access restricted to users with the role 'admin'
 router.post('/', requireAuthentication, async function (req, res, next) {
+
+    for (field in CourseClientFields) {
+        if(!req.body.hasOwnProperty(CourseClientFields[field])){
+            res.status(400).send({ error: "The request body contains an valid field" })
+            return
+        }
+    }
+
     if (req.user.role == 'admin') {
         try {
             const course = await Course.create(req.body, CourseClientFields)
@@ -103,10 +111,14 @@ router.patch('/:courseId', requireAuthentication, async function (req, res, next
         return
     }
 
-    const valid = extractValidFields(req.body, CourseClientFields)
-    console.log(valid)
+    var check = false
+    for (field in CourseClientFields) {
+        if(req.body.hasOwnProperty(CourseClientFields[field])){
+            check = true
+        }
+    }
 
-    if (Object.keys(valid).length === 0) {
+    if(check == false) {
         res.status(400).send({ error: "The request body contains no valid fields" })
         return
     }

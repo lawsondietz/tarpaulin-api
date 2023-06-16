@@ -324,17 +324,21 @@ router.patch('/:id', requireAuthentication, async function (req, res, next) {
 
     if (Object.keys(req.body).length === 0) {
         res.status(400).send({ error: "The request body is empty"})
-        next()
-    }
-
-    const valid = extractValidFields(req.body, AssignmentClientFields)
-
-    if (!valid) {
-        console.log("test")
-        next()
         return
-
     }
+
+    var check = false
+    for (field in AssignmentClientFields) {
+        if(req.body.hasOwnProperty(AssignmentClientFields[field])){
+            check = true
+        }
+    }
+
+    if(check == false) {
+        res.status(400).send({ error: "The request body contains no valid fields" })
+        return
+    }
+
 
     try {
 
