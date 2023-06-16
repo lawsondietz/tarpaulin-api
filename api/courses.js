@@ -6,6 +6,7 @@ const { UserClientFields, User} = require('../models/user')
 const { Course, CourseStudents, CourseClientFields } = require('../models/course')
 const { requireAuthentication, getUserTokenInfo } = require('../lib/auth')
 const { Assignment } = require('../models/assignment')
+const { extractValidFields } = require('../lib/validation')
 
 const router = Router()
 
@@ -96,6 +97,21 @@ router.get('/:courseId', async function (req, res, next) {
 // matches the one for the course
 router.patch('/:courseId', requireAuthentication, async function (req, res, next) {
     const courseId = req.params.courseId
+
+    if (Object.keys(req.body).length === 0) {
+        res.status(400).send({ error: "The request body is empty"})
+        return
+    }
+
+    const valid = extractValidFields(req.body, CourseClientFields)
+    console.log(valid)
+
+    if (Object.keys(valid).length === 0) {
+        res.status(400).send({ error: "The request body contains no valid fields" })
+        return
+    }
+
+
     if ((req.user.role == 'admin') || 
     (req.user.role == 'instructor' && req.user.id == req.body.instructorId)) {
         try {
@@ -219,7 +235,6 @@ router.post('/:courseId/students', requireAuthentication, async function (req, r
                     })
                 }
             } catch (e) {
-                console.log("Test")
                 next(e)
             }
         }
